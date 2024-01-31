@@ -1,58 +1,58 @@
 /*
-    TileEx : A Tiling Pattern Extractor written in Go
-    Copyright (C) 2023, Sarthak Shah (shahsarthakw@gmail.com)
+TileEx : A Tiling Pattern Extractor written in Go
+Copyright (C) 2023, Sarthak Shah (shahsarthakw@gmail.com)
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 package main
 
 import (
   "os"
-	"fmt"
-	"flag"
+  "fmt"
+  "flag"
   "sort"
-	"image"
-	"image/png"
-	"image/draw"
-	"log"
-	"runtime"
-	"sync"
+  "image"
+  "image/png"
+  "image/draw"
+  "log"
+  "runtime"
+  "sync"
 )
 
 type Color struct {
-	R, G, B uint32
+  R, G, B uint32
 }
 
 func frequencyPairs(arr chan int, preferFrequency bool) ([][]int, int) {
-	frequencyMap := make(map[int]int)
-	for num := range arr {
-		frequencyMap[num]++
-	}
-	var pairs [][]int
+  frequencyMap := make(map[int]int)
+  for num := range arr {
+    frequencyMap[num]++
+  }
+  var pairs [][]int
   var totalFrequency int
-	for num, freq := range frequencyMap {
-		pairs = append(pairs, []int{num, freq})
+  for num, freq := range frequencyMap {
+    pairs = append(pairs, []int{num, freq})
     totalFrequency += freq
-	}
+  }
   pairChoice := 0
   if preferFrequency {
     pairChoice = 1
   }
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i][pairChoice] > pairs[j][pairChoice]
-	})
-	return pairs, totalFrequency
+  sort.Slice(pairs, func(i, j int) bool {
+    return pairs[i][pairChoice] > pairs[j][pairChoice]
+  })
+  return pairs, totalFrequency
 }
 
 func ArrayPeriodicity(colors []Color) int {
@@ -72,31 +72,31 @@ func ArrayPeriodicity(colors []Color) int {
 }
 
 func processRow(img image.Image, rowIdx int, wg *sync.WaitGroup, resultRow chan <- int) {
-	defer wg.Done()
+  defer wg.Done()
 
-	bounds := img.Bounds()
-	rowColors := make([]Color, bounds.Max.X)
+  bounds := img.Bounds()
+  rowColors := make([]Color, bounds.Max.X)
 
-	for x := 0; x < bounds.Max.X; x++ {
-		r, g, b, _ := img.At(x, rowIdx).RGBA()
-		rowColors[x] = Color{R: r, G: g, B: b}
-	}
+  for x := 0; x < bounds.Max.X; x++ {
+    r, g, b, _ := img.At(x, rowIdx).RGBA()
+    rowColors[x] = Color{R: r, G: g, B: b}
+  }
 
-	resultRow <- ArrayPeriodicity(rowColors)
+  resultRow <- ArrayPeriodicity(rowColors)
 }
 
 func processCol(img image.Image, colIdx int, wg *sync.WaitGroup, resultCol chan <- int) {
-	defer wg.Done()
+  defer wg.Done()
 
-	bounds := img.Bounds()
-	colColors := make([]Color, bounds.Max.Y)
+  bounds := img.Bounds()
+  colColors := make([]Color, bounds.Max.Y)
 
-	for y := 0; y < bounds.Max.Y; y++ {
-		r, g, b, _ := img.At(colIdx, y).RGBA()
-		colColors[y] = Color{R: r, G: g, B: b}
-	}
+  for y := 0; y < bounds.Max.Y; y++ {
+    r, g, b, _ := img.At(colIdx, y).RGBA()
+    colColors[y] = Color{R: r, G: g, B: b}
+  }
 
-	resultCol <- ArrayPeriodicity(colColors)
+  resultCol <- ArrayPeriodicity(colColors)
 }
 
 func main() {
@@ -128,33 +128,33 @@ func main() {
     colTolerance = colTolerance / 100.0
   }
 
-	runtime.GOMAXPROCS(numProc)
+  runtime.GOMAXPROCS(numProc)
 
-	file, err := os.Open(input)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
+  file, err := os.Open(input)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer file.Close()
 
-	img, _, err := image.Decode(file)
-	if err != nil {
-		log.Fatal(err)
-	}
-  
-	numRows := img.Bounds().Max.Y
+  img, _, err := image.Decode(file)
+  if err != nil {
+    log.Fatal(err)
+  }
 
-	var wg sync.WaitGroup
-	resultRow := make(chan int, numRows)
+  numRows := img.Bounds().Max.Y
 
-	for y := 0; y < numRows; y++ {
-		wg.Add(1)
-		go processRow(img, y, &wg, resultRow)
-	}
+  var wg sync.WaitGroup
+  resultRow := make(chan int, numRows)
 
-	go func() {
-		wg.Wait()
-		close(resultRow)
-	}()
+  for y := 0; y < numRows; y++ {
+    wg.Add(1)
+    go processRow(img, y, &wg, resultRow)
+  }
+
+  go func() {
+    wg.Wait()
+    close(resultRow)
+  }()
 
   rowPairs, rowTotalFrequency := frequencyPairs(resultRow, rowPreferFrequency)
   rowPeriodicityIdx := 0
@@ -166,19 +166,19 @@ func main() {
   rowPeriodicity := rowPairs[rowPeriodicityIdx % len(rowPairs)][0]
   fmt.Printf("Row Periodicity: %d\n", rowPeriodicity)
 
-	numCols := img.Bounds().Max.X
+  numCols := img.Bounds().Max.X
 
-	resultCol := make(chan int, numCols)
+  resultCol := make(chan int, numCols)
 
-	for x := 0; x < numCols; x++ {
-		wg.Add(1)
-		go processCol(img, x, &wg, resultCol)
-	}
+  for x := 0; x < numCols; x++ {
+    wg.Add(1)
+    go processCol(img, x, &wg, resultCol)
+  }
 
-	go func() {
-		wg.Wait()
-		close(resultCol)
-	}()
+  go func() {
+    wg.Wait()
+    close(resultCol)
+  }()
 
   colPairs, colTotalFrequency := frequencyPairs(resultCol, colPreferFrequency)
   colPeriodicityIdx := 0
@@ -192,22 +192,22 @@ func main() {
 
   tileWidth := rowPeriodicity
   tileHeight := colPeriodicity
-	targetImage := image.NewRGBA(image.Rect(0, 0, tileWidth, tileHeight))
+  targetImage := image.NewRGBA(image.Rect(0, 0, tileWidth, tileHeight))
 
   srcRect := image.Rect(offsetX, offsetY, offsetX+tileWidth, offsetY+tileHeight)
-	dstRect := targetImage.Bounds()
+  dstRect := targetImage.Bounds()
 
-	draw.Draw(targetImage, dstRect, img, srcRect.Min, draw.Src)
+  draw.Draw(targetImage, dstRect, img, srcRect.Min, draw.Src)
 
-	outputImg, err := os.Create(output)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer outputImg.Close()
+  outputImg, err := os.Create(output)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer outputImg.Close()
 
-	if err := png.Encode(outputImg, targetImage); err != nil {
-		log.Fatal(err)
-	}
+  if err := png.Encode(outputImg, targetImage); err != nil {
+    log.Fatal(err)
+  }
 
-	fmt.Println("Image cropped and saved successfully.")
+  fmt.Println("Image cropped and saved successfully.")
 }

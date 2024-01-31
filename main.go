@@ -194,7 +194,7 @@ func main() {
   tileHeight := colPeriodicity
 	targetImage := image.NewRGBA(image.Rect(0, 0, tileWidth, tileHeight))
 
-  srcRect := image.Rect(offsetX, offsetY, tileWidth, tileHeight)
+  srcRect := image.Rect(offsetX, offsetY, offsetX+tileWidth, offsetY+tileHeight)
 	dstRect := targetImage.Bounds()
 
 	draw.Draw(targetImage, dstRect, img, srcRect.Min, draw.Src)

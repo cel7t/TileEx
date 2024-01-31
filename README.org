@@ -3,24 +3,39 @@ This program takes in images of tiling wallpapers and extracts the tile from the
 * Usage Examples
 ** Trivial Case
 Given the file below, ~input.png~
+
 [[./Examples/example-1.png]]
+
 Running ~go run main.go~ gives the following ~output.png~ file:
+
 [[./Examples/output-1.png]]
+
 Result of tiling it with ~feh --bg-tile output.png~:
+
 [[./Examples/tileex-out-1.png]]
 ** When there's other things in the image
 Given the file below, ~screenshot.png~
+
 [[./Examples/example-2.png]]
+
 Running ~go run main.go -input screenshot.png -row-prefer-frequency -col-tolerance 40~ gives the following ~output.png~ file:
+
 [[./Examples/output-2.png]]
+
 Result of tiling it with ~feh --bg-tile output.png~:
+
 [[./Examples/tileex-out-2.png]]
 ** When there are things on the top left of the image
 Given the file below, ~input.png~
+
 [[./Examples/example-3.png]]
+
 Running ~go run main.go -y-offset 400 -row-prefer-frequency -col-prefer-frequency -output tile.png~ gives the following ~tile.png~ file:
+
 [[./Examples/output-3.png]]
+
 Result of tiling it with ~feh --bg-tile tile.png~:
+
 [[./Examples/tileex-out-3.png]]
 * Usage Instructions
 Crop the screenshot so that any elements that are not a part of the tile get cropped out as far as possible. *Horizontal and vertical status bars especially*.

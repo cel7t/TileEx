@@ -19,13 +19,16 @@ package main
 
 import (
   "os"
+  "path"
   "fmt"
   "flag"
   "sort"
   "image"
   "image/png"
+  _ "image/jpeg"
   "image/draw"
   "log"
+  "math"
   "runtime"
   "sync"
 )
@@ -33,6 +36,11 @@ import (
 type Color struct {
   R, G, B uint32
 }
+
+const (
+  LOSSLESS = 0
+  LOSSY = 1
+)
 
 func frequencyPairs(arr chan int, preferFrequency bool) ([][]int, int) {
   frequencyMap := make(map[int]int)
@@ -55,7 +63,67 @@ func frequencyPairs(arr chan int, preferFrequency bool) ([][]int, int) {
   return pairs, totalFrequency
 }
 
-func ArrayPeriodicity(colors []Color) int {
+func Gray(color Color) float64 {
+  r := float64(color.R) 
+  g := float64(color.G)
+  b := float64(color.B) 
+  return 0.299 * r +  0.587 * g + 0.114 * b
+}
+
+func ColorDiff(x, y Color) int {
+  var R int = int(x.R - y.R)
+  var G int = int(x.G - y.G)
+  var B int = int(x.B - y.B)
+  return (R*R + G*G + B*B)
+}
+
+func ArrayPeriodicityJPGPlus(colors []Color) int {
+  n := len(colors)
+  var minsum int
+  minidx := 1
+  for k := 1; k < n; k++ {
+    sum := 0
+    for idx, color := range colors {
+      sum += ColorDiff(colors[(idx + k) % n], color)
+    }
+    if k == 1 {
+      minsum = sum
+    } else {
+      if sum < minsum {
+        minsum = sum
+        minidx = k
+      }
+    }
+  }
+  return minidx
+}
+
+func ArrayPeriodicityJPG(colors []Color) int {
+  n := len(colors)
+  grayscale := make([]float64, n)
+  for idx, color := range colors {
+    grayscale[idx] = Gray(color)
+  }
+  var minsum float64
+  minidx := 1
+  for k := 1; k < n; k++ {
+    sum := 0.0
+    for idx, gray := range grayscale {
+      sum += math.Abs(grayscale[(idx + k) % n] - gray)
+    }
+    if k == 1 {
+      minsum = sum
+    } else {
+      if sum < minsum {
+        minsum = sum
+        minidx = k
+      }
+    }
+  }
+  return minidx
+}
+
+func ArrayPeriodicityPNG(colors []Color) int {
   n := len(colors)
   var prefixArray = make([]int, n)
   var j = 0
@@ -71,7 +139,7 @@ func ArrayPeriodicity(colors []Color) int {
   return n - prefixArray[n - 1]
 }
 
-func processRow(img image.Image, rowIdx int, wg *sync.WaitGroup, resultRow chan <- int) {
+func processRow(img image.Image, imageFormat int, rowIdx int, wg *sync.WaitGroup, resultRow chan <- int) {
   defer wg.Done()
 
   bounds := img.Bounds()
@@ -82,10 +150,14 @@ func processRow(img image.Image, rowIdx int, wg *sync.WaitGroup, resultRow chan 
     rowColors[x] = Color{R: r, G: g, B: b}
   }
 
-  resultRow <- ArrayPeriodicity(rowColors)
+  if imageFormat == LOSSY {
+    resultRow <- ArrayPeriodicityJPGPlus(rowColors)
+  } else {
+    resultRow <- ArrayPeriodicityPNG(rowColors)
+  }
 }
 
-func processCol(img image.Image, colIdx int, wg *sync.WaitGroup, resultCol chan <- int) {
+func processCol(img image.Image, imageFormat int, colIdx int, wg *sync.WaitGroup, resultCol chan <- int) {
   defer wg.Done()
 
   bounds := img.Bounds()
@@ -96,14 +168,18 @@ func processCol(img image.Image, colIdx int, wg *sync.WaitGroup, resultCol chan 
     colColors[y] = Color{R: r, G: g, B: b}
   }
 
-  resultCol <- ArrayPeriodicity(colColors)
+  if imageFormat == LOSSY {
+    resultCol <- ArrayPeriodicityJPGPlus(colColors)
+  } else {
+    resultCol <- ArrayPeriodicityPNG(colColors)
+  }
 }
 
 func main() {
   var input, output string
   var rowTolerance, colTolerance float64
   var offsetX, offsetY, numProc int
-  var rowPreferFrequency, colPreferFrequency bool
+  var rowPreferFrequency, colPreferFrequency, setLossy, setLossless bool
   flag.StringVar(&input, "input", "input.png", "The input file")
   flag.StringVar(&output, "output", "output.png", "The output file")
   flag.Float64Var(&rowTolerance, "row-tolerance", 0.1, "The minimum frequency of the row periodicity value (percent)")
@@ -113,6 +189,8 @@ func main() {
   flag.IntVar(&numProc, "number-of-processes", runtime.NumCPU(), "The maximum number of process to be used")
   flag.BoolVar(&rowPreferFrequency, "row-prefer-frequency", false, "Give preference to the highest frequency match for rows")
   flag.BoolVar(&colPreferFrequency, "col-prefer-frequency", false, "Give preference to the highest frequency match for cols")
+  flag.BoolVar(&setLossy, "set-lossy", false, "Set the file type as lossy")
+  flag.BoolVar(&setLossless, "set-lossless", false, "Set the file type as lossless")
 
   flag.Parse()
 
@@ -141,6 +219,27 @@ func main() {
     log.Fatal(err)
   }
 
+  imageFormat := LOSSY
+  if setLossy || setLossless {
+    if setLossy && setLossless {
+      fmt.Println("Error: Please select only one of -set-lossy or -set-lossless")
+      return
+    }
+    if setLossless {
+      imageFormat = LOSSLESS
+      fmt.Println("File type: LOSSLESS")
+    } else {
+      fmt.Println("File type: LOSSY")
+    }
+  } else {
+    if path.Ext(input) == ".png" {
+      imageFormat = LOSSLESS
+      fmt.Println("File type: LOSSLESS")
+    } else {
+      fmt.Println("File type: LOSSY")
+    }
+  }
+
   numRows := img.Bounds().Max.Y
 
   var wg sync.WaitGroup
@@ -148,7 +247,7 @@ func main() {
 
   for y := 0; y < numRows; y++ {
     wg.Add(1)
-    go processRow(img, y, &wg, resultRow)
+    go processRow(img, imageFormat, y, &wg, resultRow)
   }
 
   go func() {
@@ -172,7 +271,7 @@ func main() {
 
   for x := 0; x < numCols; x++ {
     wg.Add(1)
-    go processCol(img, x, &wg, resultCol)
+    go processCol(img, imageFormat, x, &wg, resultCol)
   }
 
   go func() {

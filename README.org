@@ -42,6 +42,6 @@ Crop the screenshot so that any elements that are not a part of the tile get cro
 You might still have some things left on the screen, in which case you can adjust the tolerance or pick the period based on frequency as seen in the second example.
 In case there's something on the top or left of the image, you can adjust the x and y offsets to crop the final tile out of some other area, as seen in the third example.
 * Caveats
-*This tool only works on PNG images.* JPG images are not pixel perfect which makes it very hard to detect periods. I plan on adding JPG support some time in the future, but for now only PNG files are supported.
+JPG/JPEG detection does not work very well.
 * License
 This program is licensed under the GNU General Public License, version 3 or later.
